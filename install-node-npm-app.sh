@@ -1,5 +1,13 @@
 #!/bin/bash
 
+read -p "Please provide desired log directory: " provided_dir
+if [ ! -d "$provided_dir" ]
+then
+  mkdir $provided_dir
+fi
+
+export LOG_DIR="$(pwd)/$provided_dir"
+
 # download Node Version Manager
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
