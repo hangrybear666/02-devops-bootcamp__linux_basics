@@ -1,40 +1,53 @@
 #!/bin/bash
 
-read -p "Please provide desired log directory: " provided_dir
-if [ ! -d "$provided_dir" ]
-then
-  mkdir $provided_dir
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
 fi
 
-export LOG_DIR="$(pwd)/$provided_dir"
+# create log directory and set environment variable for server.js
+read -p "Please provide desired relative directory name for log files! " provided_dir
+if [ ! -d "/var/log/$provided_dir" ]
+then
+  mkdir /var/log/$provided_dir
+  echo "LOG DIRECTORY CREATED IN $LOG_DIR"
+fi
+LOG_DIR="/var/log/$provided_dir"
+
+# create service user
+# -m creates empty home directory
+# -s defines the shell. default is legacy /bin/sh
+sudo useradd myapp -m #-s /bin/bash
+sudo passwd -d myapp
 
 # download Node Version Manager
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+runuser -l myapp -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash"
+runuser -l myapp -c "export NVM_DIR="$HOME/.nvm" &&
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" &&
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion""
 
 #install node and npm
-nvm install 22
+runuser -l myapp -c "nvm install 22"
 
 # -O saves file to pwd with original file name
-curl -O https://node-envvars-artifact.s3.eu-west-2.amazonaws.com/bootcamp-node-envvars-project-1.0.0.tgz
-mkdir bootcamp-node-envvars-project-1.0.0/
-# extract archive to folder
-tar xvf bootcamp-node-envvars-project-1.0.0.tgz -C bootcamp-node-envvars-project-1.0.0
+runuser -l myapp -c "curl -O https://node-envvars-artifact.s3.eu-west-2.amazonaws.com/bootcamp-node-envvars-project-1.0.0.tgz &&
+mkdir bootcamp-node-envvars-project-1.0.0/ &&
+tar xvf bootcamp-node-envvars-project-1.0.0.tgz -C bootcamp-node-envvars-project-1.0.0"
 
-# export ENV Vars
-export APP_ENV=dev
-export DB_USER=myuser 
-export DB_PWD=mysecret
+# change user permissions to use log directory
+sudo chown myapp -R $LOG_DIR
+sudo chgrp myapp -R $LOG_DIR
+sudo chmod -R u+w $LOG_DIR
 
-# enter folder
-cd bootcamp-node-envvars-project-1.0.0/package/
+runuser -l myapp -c "cd bootcamp-node-envvars-project-1.0.0/package/ &&
+export APP_ENV=dev &&
+export DB_USER=myuser && 
+export DB_PWD=mysecret &&
+export LOG_DIR=$LOG_DIR &&
+npm install &&
+node server.js &"
 
-# install dependencies
-npm install
-# start server in background
-node server.js &
+sleep 2
 
 # log running node process
 echo "
